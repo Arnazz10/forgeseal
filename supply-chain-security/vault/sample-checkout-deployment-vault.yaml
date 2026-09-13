@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout-svc
+  template:
+    metadata:
+      labels:
+        app: checkout-svc
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "checkout-role"
+        vault.hashicorp.com/agent-inject-secret-DB_CREDS: "secret/data/checkout/db"
+        vault.hashicorp.com/agent-inject-template-DB_CREDS: |
+          {{- with secret "secret/data/checkout/db" -}}
+          export DB_USER={{ .Data.data.username }}
+          export DB_PASS={{ .Data.data.password }}
+          {{- end }}
+    spec:
+      serviceAccountName: checkout-sa
+      containers:
+      - name: checkout
+        image: your-registry/checkout-svc:TAG
+        command: ["/bin/sh","-c","source /vault/secrets/DB_CREDS && exec ./start-server"]

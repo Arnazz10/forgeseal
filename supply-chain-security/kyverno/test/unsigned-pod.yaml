@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsigned-test
+  labels:
+    app: unsigned-test
+spec:
+  containers:
+  - name: unsigned
+    image: busybox:latest
+    command: ["sleep", "3600"]
