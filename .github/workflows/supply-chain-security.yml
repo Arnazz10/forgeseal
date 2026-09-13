@@ -1,0 +1,129 @@
+name: Supply Chain Security CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+  release:
+    types: [published]
+
+env:
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }} # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
+  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+  SERVICES: "checkout-svc payments-svc"
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      actions: read
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials (OIDC)
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+        aws-region: us-east-1
+
+    - name: Log in to Amazon ECR
+      id: ecr-login
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and push images
+      id: build-push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.ECR_REGISTRY }}/checkout-svc:${{ github.sha }}
+          ${{ env.ECR_REGISTRY }}/payments-svc:${{ github.sha }}
+        file: ./Dockerfile # replace with per-service Dockerfile paths if needed
+
+    - name: Trivy scan images (JSON + summary)
+      id: trivy
+      uses: aquasecurity/trivy-action@v1
+      with:
+        image-ref: |
+          ${{ env.ECR_REGISTRY }}/checkout-svc:${{ github.sha }}
+          ${{ env.ECR_REGISTRY }}/payments-svc:${{ github.sha }}
+        format: json
+        output: trivy-results.json
+        severity: HIGH,CRITICAL
+        exit-code: 1
+
+    - name: Upload Trivy JSON
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-results
+        path: trivy-results.json
+
+    - name: Create human-readable Trivy summary
+      if: always()
+      run: |
+        jq '.Results[] | {Target, Vulnerabilities: (.Vulnerabilities|length)}' trivy-results.json > trivy-summary.txt || true
+
+    - name: Upload Trivy summary
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-summary
+        path: trivy-summary.txt
+
+    - name: Generate SBOMs with Syft
+      id: syft
+      run: |
+        for svc in $SERVICES; do
+          IMAGE=${ECR_REGISTRY}/${svc}:${GITHUB_SHA}
+          docker run --rm -v $PWD:/work -w /work anchore/syft:latest syft $IMAGE -o cyclonedx-json > sbom-${svc}.json || true
+        done
+
+    - name: Upload SBOM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sboms
+        path: sbom-*.json
+
+    - name: Install cosign
+      uses: sigstore/cosign-installer@v2
+      with:
+        version: v2.1.0
+
+    - name: Cosign sign (keyless)
+      env:
+        COSIGN_EXPERIMENTAL: "1"
+      run: |
+        for svc in $SERVICES; do
+          IMAGE=${ECR_REGISTRY}/${svc}:${GITHUB_SHA}
+          cosign sign --yes --keyless $IMAGE
+        done
+
+    - name: Cosign verify
+      run: |
+        for svc in $SERVICES; do
+          IMAGE=${ECR_REGISTRY}/${svc}:${GITHUB_SHA}
+          cosign verify --keyless $IMAGE || (echo "Cosign verify failed for $IMAGE" && exit 1)
+        done
+
+    - name: Generate SLSA provenance
+      uses: slsa-framework/slsa-github-generator@v0.5.0
+      with:
+        material: ${{ github.repository }}@${{ github.sha }}
+        artifacts: ${{ env.ECR_REGISTRY }}/checkout-svc:${{ github.sha }},${{ env.ECR_REGISTRY }}/payments-svc:${{ github.sha }}
+
+    - name: Upload provenance attestation
+      uses: actions/upload-artifact@v4
+      with:
+        name: slsa-provenance
+        path: provenance.*
+
+    - name: Create GitHub Release attachments (on release)
+      if: github.event_name == 'release'
+      run: echo "Attach SBOMs and provenance to release via API or use release-upload action (placeholder)"

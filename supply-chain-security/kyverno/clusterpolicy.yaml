@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-image-signature-and-sbom
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: verify-image-signature
+    match:
+      resources:
+        kinds:
+        - Pod
+    verifyImages:
+    - image: "*"
+      # Replace the key below with your Cosign public key or configure keyless verification policy
+      key: |
+        -----BEGIN PUBLIC KEY-----
+        REPLACE_WITH_COSIGN_PUBLIC_KEY
+        -----END PUBLIC KEY-----
+
+  - name: require-sbom-annotation
+    match:
+      resources:
+        kinds:
+        - Pod
+    validate:
+      message: "Pod must include a supply-chain SBOM reference in metadata.annotations['supply-chain/sbom']"
+      pattern:
+        metadata:
+          annotations:
+            supply-chain/sbom: "?*"
+
+# Note: The verifyImages rule above is a template. For keyless/identity-based verification with Cosign
+# you may need to configure Kyverno's OPA/verification plugin or use upstream examples to verify cosign
+# attestations. Replace placeholders with your real public key or attestor configuration.

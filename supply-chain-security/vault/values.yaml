@@ -1,0 +1,13 @@
+server:
+  ha:
+    enabled: false
+  dev:
+    enabled: true
+
+injector:
+  enabled: true
+
+ui:
+  enabled: true
+
+# Example: enable the injector and set auth methods as needed. For production use set HA and persistent storage.

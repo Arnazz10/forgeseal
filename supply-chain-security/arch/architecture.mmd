@@ -1,0 +1,13 @@
+%%{init: {"theme":"neutral"}}%%
+graph TD
+  A[Code push] -->|GitHub Actions| B[Build + Trivy]
+  B --> C[Syft SBOM]
+  B --> D[Cosign sign]
+  B --> E[SLSA provenance]
+  D --> F[ECR with signatures]
+  C --> F
+  E --> F
+  F --> G[ArgoCD sync to EKS]
+  G --> H[Kyverno admission checks]
+  H --> I[Vault injector pulls secrets]
+  I --> J[Pod running (checkout-svc/payments-svc)]
