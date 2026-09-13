@@ -32,6 +32,25 @@ flowchart TD
   I --> J[Pod runs]
 ```
 
+Architecture diagram (mermaid)
+
+```mermaid
+%%{init: {"theme":"neutral"}}%%
+graph TD
+  A[Code push] -->|GitHub Actions| B[Build + Trivy]
+  B --> C[Syft SBOM]
+  B --> D[Cosign sign]
+  B --> E[SLSA provenance]
+  D --> F[ECR with signatures]
+  C --> F
+  E --> F
+  F --> G[ArgoCD sync to EKS]
+  G --> H[Kyverno admission checks]
+  H --> I[Vault injector pulls secrets]
+  I --> J[Pod running (checkout-svc/payments-svc)]
+
+```
+
 Prerequisites / Secrets to set in GitHub
 - `ECR_REGISTRY` — your ECR registry (e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com)
 - `AWS_ROLE_TO_ASSUME` — IAM role ARN GitHub will assume via OIDC to push images and access ECR
