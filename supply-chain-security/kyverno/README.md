@@ -33,3 +33,8 @@ kubectl get pod signed-test -o wide
 
 Notes
 - The `verifyImages` rule in `clusterpolicy.yaml` is a template. For keyless Cosign verification you may configure Kyverno's `verifyImages` with an `attestations` field or use an external admission controller that understands Cosign. See Kyverno docs for `verifyImages` and Sigstore integration patterns.
+- The policy now requires two annotations on Pods: `supply-chain/sbom` and `supply-chain/provenance`.
+
+Quick scripts:
+- Install Kyverno + policy: `supply-chain-security/scripts/install-kyverno.sh`
+- Run admission tests: `supply-chain-security/scripts/test-kyverno.sh`

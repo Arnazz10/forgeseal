@@ -6,6 +6,7 @@ metadata:
     app: signed-test
   annotations:
     supply-chain/sbom: "s3://my-bucket/sboms/checkout-svc-${GITHUB_SHA}.json"
+    supply-chain/provenance: "s3://my-bucket/provenance/checkout-svc-${GITHUB_SHA}.intoto.jsonl"
 spec:
   containers:
   - name: signed

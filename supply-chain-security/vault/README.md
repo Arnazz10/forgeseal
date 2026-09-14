@@ -49,14 +49,17 @@ spec:
       containers:
       - name: checkout
         image: your-registry/checkout-svc:tag
-        env:
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: vault-secret-db
-              key: username
+        command: ["/bin/sh","-c","source /vault/secrets/DB_CREDS && exec ./start-server"]
 
 ```
+
+Ready-to-use examples in this repo:
+- `supply-chain-security/vault/sample-checkout-deployment-vault.yaml`
+- `supply-chain-security/vault/sample-payments-deployment-vault.yaml`
+
+Quick scripts:
+- Install Vault: `supply-chain-security/scripts/install-vault.sh`
+- Test injection: `supply-chain-security/scripts/test-vault-injection.sh`
 
 Notes
 - For production, do not use dev-mode Vault. Configure HA, persistent storage and secure auth backends.

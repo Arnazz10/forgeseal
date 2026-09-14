@@ -31,6 +31,18 @@ spec:
           annotations:
             supply-chain/sbom: "?*"
 
+  - name: require-provenance-annotation
+    match:
+      resources:
+        kinds:
+        - Pod
+    validate:
+      message: "Pod must include a supply-chain provenance reference in metadata.annotations['supply-chain/provenance']"
+      pattern:
+        metadata:
+          annotations:
+            supply-chain/provenance: "?*"
+
 # Note: The verifyImages rule above is a template. For keyless/identity-based verification with Cosign
 # you may need to configure Kyverno's OPA/verification plugin or use upstream examples to verify cosign
 # attestations. Replace placeholders with your real public key or attestor configuration.

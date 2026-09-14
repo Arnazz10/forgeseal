@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payments-svc
+  template:
+    metadata:
+      labels:
+        app: payments-svc
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "payments-role"
+        vault.hashicorp.com/agent-inject-secret-API_KEYS: "secret/data/payments/api"
+        vault.hashicorp.com/agent-inject-template-API_KEYS: |
+          {{- with secret "secret/data/payments/api" -}}
+          export PAYMENTS_API_KEY={{ .Data.data.api_key }}
+          {{- end }}
+    spec:
+      serviceAccountName: payments-sa
+      containers:
+      - name: payments
+        image: your-registry/payments-svc:TAG
+        command: ["/bin/sh","-c","source /vault/secrets/API_KEYS && exec ./start-server"]

@@ -14,6 +14,7 @@ Layout
 - `.github/workflows/supply-chain-security.yml` — CI workflow template (build, Trivy, Syft, Cosign, SLSA, artifacts)
 - `supply-chain-security/` — per-tool configuration and documentation
   - `trivy/`, `syft/`, `cosign/`, `slsa/`, `kyverno/`, `vault/`, `arch/`
+  - `scripts/` — install/test automation for Kyverno and Vault
 
 High-level flow
 
@@ -76,7 +77,15 @@ kubectl apply -f supply-chain-security/kyverno/clusterpolicy.yaml
 
 Notes on `clusterpolicy.yaml`:
 - Replace `REPLACE_WITH_COSIGN_PUBLIC_KEY` with your Cosign public key, or adapt the policy to perform keyless verification using an attestor setup.
-- The policy enforces that Pods include an annotation `supply-chain/sbom` which should reference the SBOM/provenance location. You can extend the policy to fetch and validate SBOM contents.
+- The policy enforces that Pods include annotations `supply-chain/sbom` and `supply-chain/provenance`.
+
+Automated scripts:
+
+```bash
+chmod +x supply-chain-security/scripts/*.sh
+./supply-chain-security/scripts/install-kyverno.sh
+./supply-chain-security/scripts/test-kyverno.sh
+```
 
 Vault (Secrets management)
 - `supply-chain-security/vault/values.yaml` contains a minimal dev-mode Helm values file with the injector enabled. For production, enable HA, persistent storage and configure proper storage backends.
@@ -102,6 +111,17 @@ vault write auth/kubernetes/role/checkout-role bound_service_account_names=check
 
 Injector usage
 - Annotate `checkout-svc` and `payments-svc` deployments to request secrets via the Vault Agent Injector. See `supply-chain-security/vault/README.md` for example annotations.
+- Sample manifests are included for both services:
+  - `supply-chain-security/vault/sample-checkout-deployment-vault.yaml`
+  - `supply-chain-security/vault/sample-payments-deployment-vault.yaml`
+
+Automated scripts:
+
+```bash
+chmod +x supply-chain-security/scripts/*.sh
+./supply-chain-security/scripts/install-vault.sh
+./supply-chain-security/scripts/test-vault-injection.sh
+```
 
 Testing the admission policy and vault injection
 - To test Kyverno rejects unsigned images, try deploying a Pod with an unsigned image and observe Kyverno deny the admission. Example:

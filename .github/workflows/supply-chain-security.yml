@@ -46,15 +46,21 @@ jobs:
           ${{ env.ECR_REGISTRY }}/payments-svc:${{ github.sha }}
         file: ./Dockerfile # replace with per-service Dockerfile paths if needed
 
-    - name: Trivy scan images (JSON + summary)
-      id: trivy
+    - name: Trivy scan checkout-svc (JSON)
       uses: aquasecurity/trivy-action@v1
       with:
-        image-ref: |
-          ${{ env.ECR_REGISTRY }}/checkout-svc:${{ github.sha }}
-          ${{ env.ECR_REGISTRY }}/payments-svc:${{ github.sha }}
+        image-ref: ${{ env.ECR_REGISTRY }}/checkout-svc:${{ github.sha }}
         format: json
-        output: trivy-results.json
+        output: trivy-results-checkout-svc.json
+        severity: HIGH,CRITICAL
+        exit-code: 1
+
+    - name: Trivy scan payments-svc (JSON)
+      uses: aquasecurity/trivy-action@v1
+      with:
+        image-ref: ${{ env.ECR_REGISTRY }}/payments-svc:${{ github.sha }}
+        format: json
+        output: trivy-results-payments-svc.json
         severity: HIGH,CRITICAL
         exit-code: 1
 
@@ -63,12 +69,21 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: trivy-results
-        path: trivy-results.json
+        path: trivy-results-*.json
 
     - name: Create human-readable Trivy summary
       if: always()
       run: |
-        jq '.Results[] | {Target, Vulnerabilities: (.Vulnerabilities|length)}' trivy-results.json > trivy-summary.txt || true
+        {
+          echo "# Trivy Summary"
+          echo ""
+          for file in trivy-results-*.json; do
+            echo "## ${file}"
+            jq -r '.Results[] | "- \(.Target): \((.Vulnerabilities // []) | length) vulnerabilities"' "$file" || true
+            echo ""
+          done
+        } > trivy-summary.txt
+        cat trivy-summary.txt >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload Trivy summary
       if: always()
@@ -82,7 +97,7 @@ jobs:
       run: |
         for svc in $SERVICES; do
           IMAGE=${ECR_REGISTRY}/${svc}:${GITHUB_SHA}
-          docker run --rm -v $PWD:/work -w /work anchore/syft:latest syft $IMAGE -o cyclonedx-json > sbom-${svc}.json || true
+          docker run --rm -v $PWD:/work -w /work anchore/syft:latest syft $IMAGE -o cyclonedx-json > sbom-${svc}.json
         done
 
     - name: Upload SBOM artifacts
@@ -124,6 +139,12 @@ jobs:
         name: slsa-provenance
         path: provenance.*
 
-    - name: Create GitHub Release attachments (on release)
+    - name: Release upload (SBOM + Trivy + provenance)
       if: github.event_name == 'release'
-      run: echo "Attach SBOMs and provenance to release via API or use release-upload action (placeholder)"
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          sbom-*.json
+          trivy-results-*.json
+          trivy-summary.txt
+          provenance.*
